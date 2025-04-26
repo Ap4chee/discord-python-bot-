@@ -38,15 +38,15 @@ async def rape_user(member: discord.Member, channel1: discord.VoiceChannel, chan
                     await member.move_to(channel1)
             await asyncio.sleep(1)
     except asyncio.CancelledError:
-        print(f"Zatrzymano przerzucanie {member.display_name}")
+        print(f"Zatrzymano anihilacje {member.display_name}")
         return
     except Exception as e:
-        print(f"Błąd podczas przerzucania {member.display_name}: {e}")
+        print(f"Błąd podczas anihilacji {member.display_name}: {e}")
         await asyncio.sleep(1)
 
 @bot.tree.command(name="rape")
 async def rape(interaction: discord.Interaction, member: discord.Member):
-    """Zaczyna przerzucać pojedynczego użytkownika"""
+    """Zaczyna anihilować pojedynczego użytkownika"""
     channel1 = discord.utils.get(interaction.guild.voice_channels, name="ping")
     channel2 = discord.utils.get(interaction.guild.voice_channels, name="pong")
     if not channel1 or not channel2:
@@ -54,11 +54,11 @@ async def rape(interaction: discord.Interaction, member: discord.Member):
         return
 
     if member.id in rape_tasks:
-        await interaction.response.send_message(f"{member.display_name} już jest przerzucany!", ephemeral=True)
+        await interaction.response.send_message(f"{member.display_name} już jest anihilowany!", ephemeral=True)
     else:
         task = asyncio.create_task(rape_user(member, channel1, channel2))
         rape_tasks[member.id] = task
-        await interaction.response.send_message(f"Rozpoczęto przerzucanie {member.display_name}!")
+        await interaction.response.send_message(f"Rozpoczęto anihilacje {member.display_name}!")
 
 @bot.tree.command(name="stop")
 async def stop(interaction: discord.Interaction, member: discord.Member):
@@ -66,13 +66,13 @@ async def stop(interaction: discord.Interaction, member: discord.Member):
     task = rape_tasks.pop(member.id, None)
     if task:
         task.cancel()
-        await interaction.response.send_message(f"Zatrzymano przerzucanie {member.display_name}.")
+        await interaction.response.send_message(f"Zatrzymano anihilacje {member.display_name}.")
     else:
         await interaction.response.send_message(f"{member.display_name} nie był przerzucany.", ephemeral=True)
 
 @bot.tree.command(name="rapeall")
 async def rapeall(interaction: discord.Interaction):
-    """Zaczyna przerzucać wszystkich użytkowników"""
+    """Zaczyna anihilować wszystkich użytkowników"""
     channel1 = discord.utils.get(interaction.guild.voice_channels, name="ping")
     channel2 = discord.utils.get(interaction.guild.voice_channels, name="pong")
     if not channel1 or not channel2:
@@ -90,15 +90,15 @@ async def rapeall(interaction: discord.Interaction):
             rape_tasks[member.id] = task
             count += 1
 
-    await interaction.response.send_message(f"Rozpoczęto przerzucanie {count} użytkowników!")
+    await interaction.response.send_message(f"Rozpoczęto anihilacje {count} użytkowników!")
 
 @bot.tree.command(name="stopall")
 async def stopall(interaction: discord.Interaction):
-    """Zatrzymuje przerzucanie wszystkich użytkowników"""
+    """Zatrzymuje anihilacje wszystkich użytkowników"""
     count = len(rape_tasks)
     for task in rape_tasks.values():
         task.cancel()
     rape_tasks.clear()
-    await interaction.response.send_message(f"Zatrzymano przerzucanie {count} użytkowników.")
+    await interaction.response.send_message(f"Zatrzymano anihilacje {count} użytkowników.")
 
 bot.run(os.getenv('token'))
