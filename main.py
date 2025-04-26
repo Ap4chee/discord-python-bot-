@@ -1,88 +1,104 @@
 import discord
+from discord.ext import commands
+from discord import app_commands
 import asyncio
 import os
 
 intents = discord.Intents.default()
+intents.message_content = True
+intents.guilds = True
 intents.voice_states = True
 intents.members = True
-intents.guilds = True
 
-bot = discord.Client(intents=intents)
-tree = discord.app_commands.CommandTree(bot)
+bot = commands.Bot(command_prefix="!", intents=intents)
 
-PING_CHANNEL_NAME = "ping"
-PONG_CHANNEL_NAME = "pong"
-
-# Aktywne przerzucanie pojedynczych osób
-active_rapes = {}
-
-# Aktywne przerzucanie wszystkich osób
-rape_all_active = {}
+# Słownik aktywnych przerzucań
+rape_tasks = {}
 
 @bot.event
 async def on_ready():
-    await tree.sync()
     print(f"Zalogowano jako {bot.user}")
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} commands.")
+    except Exception as e:
+        print(e)
 
-# /rape - pojedyncza osoba
-@tree.command(name="rape", description="Przerzucaj użytkownika między ping a pong.")
-async def rape(interaction: discord.Interaction, member: discord.Member):
-    ping = discord.utils.get(interaction.guild.voice_channels, name=PING_CHANNEL_NAME)
-    pong = discord.utils.get(interaction.guild.voice_channels, name=PONG_CHANNEL_NAME)
-
-    if not ping or not pong:
-        await interaction.response.send_message("Nie znalazłem kanałów 'ping' lub 'pong'.", ephemeral=True)
-        return
-
-    await interaction.response.send_message(f"Zaczynam przerzucać {member.display_name}!", ephemeral=False)
-    active_rapes[member.id] = True
-
-    while active_rapes.get(member.id, False):
-        if member.voice:
-            await member.move_to(pong)
+async def rape_user(member: discord.Member, channel1: discord.VoiceChannel, channel2: discord.VoiceChannel):
+    try:
+        while True:
+            if member.voice is None:
+                # User nie jest na żadnym kanale głosowym
+                pass
+            else:
+                current_channel = member.voice.channel
+                if current_channel == channel1:
+                    await member.move_to(channel2)
+                else:
+                    await member.move_to(channel1)
             await asyncio.sleep(1)
-            await member.move_to(ping)
-            await asyncio.sleep(1)
-        else:
-            await interaction.channel.send(f"{member.display_name} wyszedł z kanału głosowego, zatrzymuję.")
-            break
-
-# /stop - zatrzymanie pojedynczej osoby
-@tree.command(name="stop", description="Zatrzymaj przerzucanie użytkownika.")
-async def stop(interaction: discord.Interaction, member: discord.Member):
-    active_rapes[member.id] = False
-    await interaction.response.send_message(f"Zatrzymałem przerzucanie {member.display_name}.", ephemeral=False)
-
-# /rapeall - wszyscy użytkownicy
-@tree.command(name="rapeall", description="Przerzucaj wszystkich z kanału ping i pong w kółko.")
-async def rapeall(interaction: discord.Interaction):
-    ping = discord.utils.get(interaction.guild.voice_channels, name=PING_CHANNEL_NAME)
-    pong = discord.utils.get(interaction.guild.voice_channels, name=PONG_CHANNEL_NAME)
-
-    if not ping or not pong:
-        await interaction.response.send_message("Nie znalazłem kanałów 'ping' lub 'pong'.", ephemeral=True)
+    except asyncio.CancelledError:
+        print(f"Zatrzymano przerzucanie {member.display_name}")
         return
-
-    await interaction.response.send_message("Zaczynam przerzucać wszystkich!", ephemeral=False)
-    rape_all_active[interaction.guild.id] = True
-
-    while rape_all_active.get(interaction.guild.id, False):
-        all_members = [m for m in ping.members + pong.members]
-        for member in all_members:
-            try:
-                if member.voice:
-                    current_channel = member.voice.channel
-                    target_channel = pong if current_channel == ping else ping
-                    await member.move_to(target_channel)
-            except Exception as e:
-                print(f"Błąd przenoszenia {member.display_name}: {e}")
+    except Exception as e:
+        print(f"Błąd podczas przerzucania {member.display_name}: {e}")
         await asyncio.sleep(1)
 
-# /stopall - zatrzymanie wszystkich
-@tree.command(name="stopall", description="Zatrzymaj przerzucanie wszystkich.")
+@bot.tree.command(name="rape")
+async def rape(interaction: discord.Interaction, member: discord.Member):
+    """Zaczyna przerzucać pojedynczego użytkownika"""
+    channel1 = discord.utils.get(interaction.guild.voice_channels, name="ping")
+    channel2 = discord.utils.get(interaction.guild.voice_channels, name="pong")
+    if not channel1 or not channel2:
+        await interaction.response.send_message("Nie znaleziono kanałów 'ping' i 'pong'", ephemeral=True)
+        return
+
+    if member.id in rape_tasks:
+        await interaction.response.send_message(f"{member.display_name} już jest przerzucany!", ephemeral=True)
+    else:
+        task = asyncio.create_task(rape_user(member, channel1, channel2))
+        rape_tasks[member.id] = task
+        await interaction.response.send_message(f"Rozpoczęto przerzucanie {member.display_name}!")
+
+@bot.tree.command(name="stop")
+async def stop(interaction: discord.Interaction, member: discord.Member):
+    """Zatrzymuje przerzucanie pojedynczego użytkownika"""
+    task = rape_tasks.pop(member.id, None)
+    if task:
+        task.cancel()
+        await interaction.response.send_message(f"Zatrzymano przerzucanie {member.display_name}.")
+    else:
+        await interaction.response.send_message(f"{member.display_name} nie był przerzucany.", ephemeral=True)
+
+@bot.tree.command(name="rapeall")
+async def rapeall(interaction: discord.Interaction):
+    """Zaczyna przerzucać wszystkich użytkowników"""
+    channel1 = discord.utils.get(interaction.guild.voice_channels, name="ping")
+    channel2 = discord.utils.get(interaction.guild.voice_channels, name="pong")
+    if not channel1 or not channel2:
+        await interaction.response.send_message("Nie znaleziono kanałów 'ping' i 'pong'", ephemeral=True)
+        return
+
+    count = 0
+    for member in interaction.guild.members:
+        if member.bot:
+            continue
+        if member.voice is None:
+            continue
+        if member.id not in rape_tasks:
+            task = asyncio.create_task(rape_user(member, channel1, channel2))
+            rape_tasks[member.id] = task
+            count += 1
+
+    await interaction.response.send_message(f"Rozpoczęto przerzucanie {count} użytkowników!")
+
+@bot.tree.command(name="stopall")
 async def stopall(interaction: discord.Interaction):
-    rape_all_active[interaction.guild.id] = False
-    await interaction.response.send_message("Zatrzymałem przerzucanie wszystkich!", ephemeral=False)
+    """Zatrzymuje przerzucanie wszystkich użytkowników"""
+    count = len(rape_tasks)
+    for task in rape_tasks.values():
+        task.cancel()
+    rape_tasks.clear()
+    await interaction.response.send_message(f"Zatrzymano przerzucanie {count} użytkowników.")
 
 bot.run(os.getenv('token'))
-
