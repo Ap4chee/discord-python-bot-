@@ -1,5 +1,6 @@
 import discord
 import asyncio
+import os
 
 intents = discord.Intents.default()
 intents.voice_states = True
@@ -83,4 +84,5 @@ async def stopall(interaction: discord.Interaction):
     rape_all_active[interaction.guild.id] = False
     await interaction.response.send_message("Zatrzymałem przerzucanie wszystkich!", ephemeral=False)
 
-bot.run('MTM2NTc1NjUzMDE1NDAxNjgzMQ.G1XLIS.gNTdjDiMZ9S57R_GSQJlpYR4ANC9ggKYMduETE')
+bot.run(os.getenv('token'))
+
