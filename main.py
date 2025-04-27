@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from discord import app_commands
+from discord import app_commands, ui
 import asyncio
 import os
 
@@ -28,7 +28,6 @@ async def rape_user(member: discord.Member, channel1: discord.VoiceChannel, chan
     try:
         while True:
             if member.voice is None:
-                # User nie jest na żadnym kanale głosowym
                 pass
             else:
                 current_channel = member.voice.channel
@@ -44,6 +43,20 @@ async def rape_user(member: discord.Member, channel1: discord.VoiceChannel, chan
         print(f"Błąd podczas anihilacji {member.display_name}: {e}")
         await asyncio.sleep(1)
 
+class StopButton(ui.View):
+    def __init__(self, member: discord.Member):
+        super().__init__(timeout=None)
+        self.member = member
+
+    @ui.button(label="🛑 Stop", style=discord.ButtonStyle.danger)
+    async def stop(self, interaction: discord.Interaction, button: ui.Button):
+        task = rape_tasks.pop(self.member.id, None)
+        if task:
+            task.cancel()
+            await interaction.response.edit_message(content=f"Zatrzymano anihilacje {self.member.display_name}.", view=None)
+        else:
+            await interaction.response.edit_message(content=f"{self.member.display_name} nie był przerzucany.", view=None)
+
 @bot.tree.command(name="rape")
 async def rape(interaction: discord.Interaction, member: discord.Member):
     """Zaczyna anihilować pojedynczego użytkownika"""
@@ -58,7 +71,8 @@ async def rape(interaction: discord.Interaction, member: discord.Member):
     else:
         task = asyncio.create_task(rape_user(member, channel1, channel2))
         rape_tasks[member.id] = task
-        await interaction.response.send_message(f"Rozpoczęto anihilacje {member.display_name}!")
+        view = StopButton(member)
+        await interaction.response.send_message(f"Rozpoczęto anihilacje {member.display_name}!", view=view)
 
 @bot.tree.command(name="stop")
 async def stop(interaction: discord.Interaction, member: discord.Member):
