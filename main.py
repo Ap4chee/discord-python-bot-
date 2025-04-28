@@ -13,7 +13,7 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Słownik aktywnych przerzucań
-move_tasks = {}
+rape_tasks = {}
 
 @bot.event
 async def on_ready():
@@ -24,7 +24,7 @@ async def on_ready():
     except Exception as e:
         print(e)
 
-async def move_user(member: discord.Member, channel1: discord.VoiceChannel, channel2: discord.VoiceChannel):
+async def rape_user(member: discord.Member, channel1: discord.VoiceChannel, channel2: discord.VoiceChannel):
     try:
         while True:
             if member.voice is None:
@@ -37,10 +37,10 @@ async def move_user(member: discord.Member, channel1: discord.VoiceChannel, chan
                     await member.move_to(channel1)
             await asyncio.sleep(1)
     except asyncio.CancelledError:
-        print(f"Zatrzymano przerzucanie {member.display_name}")
+        print(f"Zatrzymano anihilacje {member.display_name}")
         return
     except Exception as e:
-        print(f"Błąd podczas przerzucania {member.display_name}: {e}")
+        print(f"Błąd podczas anihilacji {member.display_name}: {e}")
         await asyncio.sleep(1)
 
 class StopButton(ui.View):
@@ -50,46 +50,63 @@ class StopButton(ui.View):
 
     @ui.button(label="🛑 Stop", style=discord.ButtonStyle.danger)
     async def stop(self, interaction: discord.Interaction, button: ui.Button):
-        task = move_tasks.pop(self.member.id, None)
+        task = rape_tasks.pop(self.member.id, None)
         if task:
             task.cancel()
-            await interaction.response.edit_message(content=f"Zatrzymano przerzucanie {self.member.display_name}.", view=None)
+            await interaction.response.edit_message(content=f"Zatrzymano anihilacje {self.member.display_name}.", view=None)
         else:
             await interaction.response.edit_message(content=f"{self.member.display_name} nie był przerzucany.", view=None)
 
+# KOMENDA: rape
 @app_commands.checks.has_permissions(administrator=True)
 @bot.tree.command(name="rape")
 async def rape(interaction: discord.Interaction, member: discord.Member):
-    """Zaczyna przerzucać pojedynczego użytkownika"""
+    """Zaczyna anihilować pojedynczego użytkownika"""
     channel1 = discord.utils.get(interaction.guild.voice_channels, name="ping")
     channel2 = discord.utils.get(interaction.guild.voice_channels, name="pong")
     if not channel1 or not channel2:
         await interaction.response.send_message("Nie znaleziono kanałów 'ping' i 'pong'", ephemeral=True)
         return
 
-    if member.id in move_tasks:
-        await interaction.response.send_message(f"{member.display_name} już jest przerzucany!", ephemeral=True)
+    if member.id in rape_tasks:
+        await interaction.response.send_message(f"{member.display_name} już jest anihilowany!", ephemeral=True)
     else:
-        task = asyncio.create_task(move_user(member, channel1, channel2))
-        move_tasks[member.id] = task
+        task = asyncio.create_task(rape_user(member, channel1, channel2))
+        rape_tasks[member.id] = task
         view = StopButton(member)
-        await interaction.response.send_message(f"Rozpoczęto przerzucanie {member.display_name}!", view=view)
+        await interaction.response.send_message(f"Rozpoczęto anihilacje {member.display_name}!", view=view)
 
+@rape.error
+async def rape_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.errors.MissingPermissions):
+        await interaction.response.send_message("❌ Nie masz uprawnień do użycia tej komendy!", ephemeral=True)
+    else:
+        await interaction.response.send_message(f"Wystąpił błąd: {error}", ephemeral=True)
+
+# KOMENDA: stop
 @app_commands.checks.has_permissions(administrator=True)
 @bot.tree.command(name="stop")
 async def stop(interaction: discord.Interaction, member: discord.Member):
     """Zatrzymuje przerzucanie pojedynczego użytkownika"""
-    task = move_tasks.pop(member.id, None)
+    task = rape_tasks.pop(member.id, None)
     if task:
         task.cancel()
-        await interaction.response.send_message(f"Zatrzymano przerzucanie {member.display_name}.")
+        await interaction.response.send_message(f"Zatrzymano anihilacje {member.display_name}.")
     else:
         await interaction.response.send_message(f"{member.display_name} nie był przerzucany.", ephemeral=True)
 
+@stop.error
+async def stop_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.errors.MissingPermissions):
+        await interaction.response.send_message("❌ Nie masz uprawnień do użycia tej komendy!", ephemeral=True)
+    else:
+        await interaction.response.send_message(f"Wystąpił błąd: {error}", ephemeral=True)
+
+# KOMENDA: rapeall
 @app_commands.checks.has_permissions(administrator=True)
 @bot.tree.command(name="rapeall")
 async def rapeall(interaction: discord.Interaction):
-    """Zaczyna przerzucać wszystkich użytkowników"""
+    """Zaczyna anihilować wszystkich użytkowników"""
     channel1 = discord.utils.get(interaction.guild.voice_channels, name="ping")
     channel2 = discord.utils.get(interaction.guild.voice_channels, name="pong")
     if not channel1 or not channel2:
@@ -102,29 +119,37 @@ async def rapeall(interaction: discord.Interaction):
             continue
         if member.voice is None:
             continue
-        if member.id not in move_tasks:
-            task = asyncio.create_task(move_user(member, channel1, channel2))
-            move_tasks[member.id] = task
+        if member.id not in rape_tasks:
+            task = asyncio.create_task(rape_user(member, channel1, channel2))
+            rape_tasks[member.id] = task
             count += 1
 
-    await interaction.response.send_message(f"Rozpoczęto przerzucanie {count} użytkowników!")
+    await interaction.response.send_message(f"Rozpoczęto anihilacje {count} użytkowników!")
 
-@app_commands.checks.has_permissions(administrator=True)
-@bot.tree.command(name="stopall")
-async def stopall(interaction: discord.Interaction):
-    """Zatrzymuje przerzucanie wszystkich użytkowników"""
-    count = len(move_tasks)
-    for task in move_tasks.values():
-        task.cancel()
-    move_tasks.clear()
-    await interaction.response.send_message(f"Zatrzymano przerzucanie {count} użytkowników.")
-
-# Obsługa błędów komend aplikacji
-@bot.tree.error
-async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+@rapeall.error
+async def rapeall_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.errors.MissingPermissions):
         await interaction.response.send_message("❌ Nie masz uprawnień do użycia tej komendy!", ephemeral=True)
     else:
         await interaction.response.send_message(f"Wystąpił błąd: {error}", ephemeral=True)
 
+# KOMENDA: stopall
+@app_commands.checks.has_permissions(administrator=True)
+@bot.tree.command(name="stopall")
+async def stopall(interaction: discord.Interaction):
+    """Zatrzymuje anihilacje wszystkich użytkowników"""
+    count = len(rape_tasks)
+    for task in rape_tasks.values():
+        task.cancel()
+    rape_tasks.clear()
+    await interaction.response.send_message(f"Zatrzymano anihilacje {count} użytkowników.")
+
+@stopall.error
+async def stopall_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.errors.MissingPermissions):
+        await interaction.response.send_message("❌ Nie masz uprawnień do użycia tej komendy!", ephemeral=True)
+    else:
+        await interaction.response.send_message(f"Wystąpił błąd: {error}", ephemeral=True)
+
+# Start bota
 bot.run(os.getenv('token'))
