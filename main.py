@@ -61,21 +61,6 @@ async def move_user(member: discord.Member, channel1: discord.VoiceChannel, chan
         await asyncio.sleep(2)
 
 
-
-class StopButton(ui.View):
-    def __init__(self, member: discord.Member):
-        super().__init__(timeout=None)
-        self.member = member
-
-    @ui.button(label="🛑 Stop", style=discord.ButtonStyle.danger)
-    async def stop(self, interaction: discord.Interaction, button: ui.Button):
-        task = move_tasks.pop(self.member.id, None)
-        if task:
-            task.cancel()
-            await interaction.response.edit_message(content=f"Zatrzymano przerzucanie {self.member.display_name}.", view=None)
-        else:
-            await interaction.response.edit_message(content=f"{self.member.display_name} nie był przerzucany.", view=None)
-
 @app_commands.checks.has_permissions(administrator=True)
 @bot.tree.command(name="rape")
 async def rape(interaction: discord.Interaction, member: discord.Member):
