@@ -23,15 +23,14 @@ async def on_ready():
         print(f"Synced {len(synced)} commands.")
     except Exception as e:
         print(e)
-
 async def move_user(member: discord.Member, channel1: discord.VoiceChannel, channel2: discord.VoiceChannel, original_channel: discord.VoiceChannel):
     try:
         toggling = False
-        in_toggle = False  # Czy już przerzucamy
+        in_toggle = False  # Czy aktualnie przerzucamy
 
         while True:
             if member.voice is None:
-                await asyncio.sleep(1)
+                await asyncio.sleep(2)
                 continue
 
             voice_state = member.voice
@@ -43,8 +42,8 @@ async def move_user(member: discord.Member, channel1: discord.VoiceChannel, chan
 
             elif not is_muted and in_toggle:
                 await member.move_to(original_channel)
-                print(f"{member.display_name} został odmutowany – kończę przerzucanie.")
-                break
+                in_toggle = False
+                print(f"{member.display_name} odmutowany – kończę przerzucanie i czekam dalej.")
 
             if in_toggle:
                 target_channel = channel2 if toggling else channel1
@@ -52,14 +51,14 @@ async def move_user(member: discord.Member, channel1: discord.VoiceChannel, chan
                     await member.move_to(target_channel)
                 toggling = not toggling
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)  # Optymalizacja CPU
 
     except asyncio.CancelledError:
         print(f"Zatrzymano przerzucanie {member.display_name}")
         return
     except Exception as e:
         print(f"Błąd podczas przerzucania {member.display_name}: {e}")
-        await asyncio.sleep(1)
+        await asyncio.sleep(2)
 
 
 
