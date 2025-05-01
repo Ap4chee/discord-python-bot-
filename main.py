@@ -24,24 +24,30 @@ async def on_ready():
     except Exception as e:
         print(e)
 
-async def move_user(member: discord.Member, channel1: discord.VoiceChannel, channel2: discord.VoiceChannel):
+async def move_user(member: discord.Member, channel1: discord.VoiceChannel, channel2: discord.VoiceChannel, original_channel: discord.VoiceChannel):
     try:
         while True:
             if member.voice is None:
-                pass
+                await asyncio.sleep(1)
+                continue
+
+            if not member.voice.mute:  # użytkownik się odmutował
+                await member.move_to(original_channel)
+                print(f"{member.display_name} odmutowany — przeniesiono z powrotem.")
+                break
+
+            current_channel = member.voice.channel
+            if current_channel == channel1:
+                await member.move_to(channel2)
             else:
-                current_channel = member.voice.channel
-                if current_channel == channel1:
-                    await member.move_to(channel2)
-                else:
-                    await member.move_to(channel1)
+                await member.move_to(channel1)
+
             await asyncio.sleep(1)
     except asyncio.CancelledError:
         print(f"Zatrzymano przerzucanie {member.display_name}")
         return
     except Exception as e:
         print(f"Błąd podczas przerzucania {member.display_name}: {e}")
-        await asyncio.sleep(1)
 
 class StopButton(ui.View):
     def __init__(self, member: discord.Member):
@@ -60,20 +66,26 @@ class StopButton(ui.View):
 @app_commands.checks.has_permissions(administrator=True)
 @bot.tree.command(name="rape")
 async def rape(interaction: discord.Interaction, member: discord.Member):
-    """Zaczyna przerzucać pojedynczego użytkownika"""
+    """Zaczyna przerzucać użytkownika dopóki jest zmutowany"""
     channel1 = discord.utils.get(interaction.guild.voice_channels, name="ping")
     channel2 = discord.utils.get(interaction.guild.voice_channels, name="pong")
+
     if not channel1 or not channel2:
         await interaction.response.send_message("Nie znaleziono kanałów 'ping' i 'pong'", ephemeral=True)
+        return
+
+    if member.voice is None:
+        await interaction.response.send_message(f"{member.display_name} nie jest na żadnym kanale głosowym.", ephemeral=True)
         return
 
     if member.id in move_tasks:
         await interaction.response.send_message(f"{member.display_name} już jest przerzucany!", ephemeral=True)
     else:
-        task = asyncio.create_task(move_user(member, channel1, channel2))
+        original_channel = member.voice.channel
+        task = asyncio.create_task(move_user(member, channel1, channel2, original_channel))
         move_tasks[member.id] = task
         view = StopButton(member)
-        await interaction.response.send_message(f"Rozpoczęto przerzucanie {member.display_name}!", view=view)
+        await interaction.response.send_message(f"Rozpoczęto przerzucanie {member.display_name} dopóki jest zmutowany!", view=view)
 
 @app_commands.checks.has_permissions(administrator=True)
 @bot.tree.command(name="stop")
@@ -89,7 +101,7 @@ async def stop(interaction: discord.Interaction, member: discord.Member):
 @app_commands.checks.has_permissions(administrator=True)
 @bot.tree.command(name="rapeall")
 async def rapeall(interaction: discord.Interaction):
-    """Zaczyna przerzucać wszystkich użytkowników"""
+    """Zaczyna przerzucać wszystkich zmutowanych użytkowników"""
     channel1 = discord.utils.get(interaction.guild.voice_channels, name="ping")
     channel2 = discord.utils.get(interaction.guild.voice_channels, name="pong")
     if not channel1 or not channel2:
@@ -98,16 +110,15 @@ async def rapeall(interaction: discord.Interaction):
 
     count = 0
     for member in interaction.guild.members:
-        if member.bot:
-            continue
-        if member.voice is None:
+        if member.bot or member.voice is None or not member.voice.mute:
             continue
         if member.id not in move_tasks:
-            task = asyncio.create_task(move_user(member, channel1, channel2))
+            original_channel = member.voice.channel
+            task = asyncio.create_task(move_user(member, channel1, channel2, original_channel))
             move_tasks[member.id] = task
             count += 1
 
-    await interaction.response.send_message(f"Rozpoczęto przerzucanie {count} użytkowników!")
+    await interaction.response.send_message(f"Rozpoczęto przerzucanie {count} zmutowanych użytkowników!")
 
 @app_commands.checks.has_permissions(administrator=True)
 @bot.tree.command(name="stopall")
@@ -119,7 +130,6 @@ async def stopall(interaction: discord.Interaction):
     move_tasks.clear()
     await interaction.response.send_message(f"Zatrzymano przerzucanie {count} użytkowników.")
 
-# Obsługa błędów komend aplikacji
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.errors.MissingPermissions):
