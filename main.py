@@ -26,33 +26,41 @@ async def on_ready():
 
 async def move_user(member: discord.Member, channel1: discord.VoiceChannel, channel2: discord.VoiceChannel, original_channel: discord.VoiceChannel):
     try:
-        toggle = False
+        toggling = False
+        in_toggle = False  # Czy już przerzucamy
+
         while True:
             if member.voice is None:
                 await asyncio.sleep(1)
                 continue
 
             voice_state = member.voice
-            print(f"{member.display_name}: mute={voice_state.mute}, self_mute={voice_state.self_mute}")
+            is_muted = voice_state.mute or voice_state.self_mute
 
-            if not voice_state.mute and not voice_state.self_mute:
+            if is_muted and not in_toggle:
+                in_toggle = True
+                print(f"{member.display_name} został zmutowany – zaczynam przerzucanie.")
+
+            elif not is_muted and in_toggle:
                 await member.move_to(original_channel)
-                print(f"{member.display_name} odmutowany – przeniesiono z powrotem.")
+                print(f"{member.display_name} został odmutowany – kończę przerzucanie.")
                 break
 
-            # Przełącz kanał co iterację
-            target_channel = channel2 if toggle else channel1
-            if voice_state.channel != target_channel:
-                await member.move_to(target_channel)
-            toggle = not toggle
+            if in_toggle:
+                target_channel = channel2 if toggling else channel1
+                if voice_state.channel != target_channel:
+                    await member.move_to(target_channel)
+                toggling = not toggling
 
             await asyncio.sleep(1)
+
     except asyncio.CancelledError:
         print(f"Zatrzymano przerzucanie {member.display_name}")
         return
     except Exception as e:
         print(f"Błąd podczas przerzucania {member.display_name}: {e}")
         await asyncio.sleep(1)
+
 
 
 class StopButton(ui.View):
